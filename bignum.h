@@ -4,6 +4,7 @@
 #include <string>
 #include <stdint.h>
 #include <algorithm>
+#include <sstream>
 #include <exception>
 #include <utility>
 #include <vector>
@@ -26,11 +27,13 @@ public:
     BigNum(int64_t n)
     {
         std::string num = std::to_string(n);
-        if (n < 0)
+        
+        if (num.front() == '-')
         {
             this->positive = false;
+            num = num.substr(1);
         }
-        
+
         while (!num.empty())
         {
             this->number.push_back(num.back() - '0');
@@ -63,7 +66,7 @@ public:
             skipFrontZero = false;
             if (std::isdigit(str.at(position)))
             {
-                this->number.push_back(str.at(position) - '0');// skontroluj implicitnu konveziu 
+                this->number.push_back(str.at(position) - '0');
             }
             else
             {
@@ -75,50 +78,8 @@ public:
         {
             number.push_back(0);
         }
-
-        //std::string numberString = str;
-        //size_t substringLength = std::to_string(base).size();
-        //std::string resultString;
-        //auto substr = numberString.substr(0, substringLength);
-        //numberString = numberString.substr(substringLength);
-        //std::ranges::reverse(numberString);
-
-        //try
-        //{
-        //    while (!numberString.empty())
-        //    {
-        //        uint64_t partialResult = std::stoull(substr);
-        //        uint64_t result = partialResult >> 30;
-
-        //        if (!resultString.empty() || (result != 0))
-        //        {
-        //            resultString.append(std::to_string(result));
-        //        }
-        //        uint64_t remainder = partialResult - (result * base); // skontroluj overflow 
-        //        substr = std::to_string(remainder);
-        //        substr.push_back(numberString.back());
-        //        numberString.pop_back();
-        //    }
-
-        //    uint64_t partialResult = std::stoull(substr);
-        //    uint64_t result = partialResult >> 30;
-        //    resultString.append(std::to_string(result));
-        //    uint64_t remainder = partialResult - (result * base);
-
-        //    std::cout << resultString << std::endl;
-        //    std::cout << numberString;
-        //}
-        //catch (std::out_of_range& a)
-        //{
-        //    std::cerr << a.what() << std::endl;
-
-        //}
-        //catch (std::invalid_argument)
-        //{
-        //    std::cerr << "Invalid argument" << std::endl;
-        //    throw std::exception("Wrong number format");
-        //}
-        
+        trimTrailingZero(this->number);
+        negativeZeroCheck(*this);
     }
 
     // copy
@@ -139,6 +100,7 @@ public:
     {
         BigNum copy(*this);
         copy.positive = !this->positive;
+        negativeZeroCheck(copy);
         return copy;
     }
 
@@ -146,7 +108,7 @@ public:
     BigNum& operator+=(const BigNum& rhs)
     {
         std::pair<std::vector<uint8_t>, bool> result;
-
+        std::cout << "Addition of : " << *this << " and " << rhs << " = ";
         if (this->positive && rhs.positive)
         {
             //both are positive
@@ -161,27 +123,38 @@ public:
         else if((!this->positive) && rhs.positive)
         {
             //left is negative
-            result = subtract(rhs, *this);
+            BigNum unsignedCopy(*this);
+            unsignedCopy.positive = true;
+
+            result = subtract(rhs, unsignedCopy);
             this->positive = !result.second;
         }
         else if (this->positive && (!rhs.positive))
         {
             //right is negative
-            result = subtract(*this, rhs);
+            BigNum unsignedCopy(*this);
+            unsignedCopy.positive = true;
+
+            result = subtract(unsignedCopy, rhs);
             this->positive = !result.second;
         }
+        BigNum::trimTrailingZero(result.first);
+       
         this->number = result.first;
+
+        std::cout << *this << std::endl;
         return *this;
     }
 
     BigNum& operator-=(const BigNum& rhs)
     {
         std::pair<std::vector<uint8_t>, bool> result;
-
+        std::cout << "Subtraction of : " << *this << " and " << rhs << " = ";
         if (this->positive && rhs.positive)
         {
             //both are positive
             result = subtract(*this, rhs);
+            this->positive = !result.second;
         }
         else if ((!this->positive) && (!rhs.positive))
         {
@@ -192,17 +165,19 @@ public:
         else if ((!this->positive) && rhs.positive)
         {
             //left is negative
-            result = subtract(rhs, *this);
-            this->positive = !result.second;
+            result = add(rhs, *this);
+            this->positive = result.second;
         }
         else if (this->positive && (!rhs.positive))
         {
             //right is negative
-            result = subtract(*this, rhs);
+            result = add(*this, rhs);
             this->positive = !result.second;
         }
-
+        
         this->number = result.first;
+        negativeZeroCheck(*this);
+        std::cout << *this << std::endl;
         return *this;
     }
 
@@ -210,11 +185,12 @@ public:
     {
         std::vector<uint8_t> result;
         uint32_t carry = 0;
-        uint64_t multiplicator = 0;
+        
+        std::cout << "Multiplication of : " << *this << " and " << rhs << " = ";
 
         for (uint64_t multiplicand = 0; multiplicand < rhs.number.size(); multiplicand++)
         {
-            for (; multiplicator < this->number.size(); multiplicator++)
+            for (uint64_t multiplicator = 0; multiplicator < this->number.size(); multiplicator++)
             {
                 uint32_t digits = (this->number.at(multiplicator) * rhs.number.at(multiplicand)) + carry;
                 if (multiplicand + multiplicator >= result.size())
@@ -223,18 +199,44 @@ public:
                 }
                 else
                 {
-                    result.at(multiplicand + multiplicator) +=  digits % 10;
+                    result.at(multiplicand + multiplicator) += digits % 10;
                 }
                 carry = digits / base;
+                if (carry > 0)
+                {
+                    result.push_back(carry % 10);
+                    carry = 0;
+                }
             }
-            multiplicator = 0;
         }
         this->positive = this->positive && rhs.positive;
         if ((!this->positive) && (!rhs.positive))
         {
             this->positive = true;
         }
+
+        for (uint64_t iter = 0; iter < result.size(); iter++)
+        {
+            if (result.at(iter) >= 10)
+            {
+                carry = result.at(iter) / 10;
+                result.at(iter) = result.at(iter) % 10;
+                if (iter + 1 < result.size())
+                {
+                    result.at(iter + 1) += static_cast<uint8_t>(carry);
+                }
+                else
+                {
+                    result.push_back(static_cast<uint8_t>(carry));
+                }
+                carry = 0;
+            }
+        }
+
+        BigNum::trimTrailingZero(result);
         this->number = result;
+        negativeZeroCheck(*this);
+        std::cout << *this << std::endl;
         return *this;
     }
 
@@ -250,6 +252,8 @@ private:
     std::vector<uint8_t> number;
 
     //functions//
+    static void trimTrailingZero(std::vector<uint8_t>& data);
+    friend void negativeZeroCheck(BigNum& member);
     friend std::pair<std::vector<uint8_t>, bool> subtract(const BigNum& lhs, const BigNum& rhs);
     friend std::pair<std::vector<uint8_t>, bool> add(const BigNum& lhs, const BigNum& rhs);
     friend std::vector<uint8_t> multiply(const BigNum& lhs, const BigNum& rhs);
@@ -268,6 +272,37 @@ private:
         return this->number;
     }
 };
+
+void negativeZeroCheck(BigNum& member)
+{
+    if (member.number.size() == 1 && member.number.front() == 0 && !member.positive)
+    {
+        member.positive = true;
+    }
+}
+
+void BigNum::trimTrailingZero(std::vector<uint8_t>& data)
+{
+    int64_t cutPoint = -1;
+
+    //skip first number
+    for(uint64_t position = 1; position < data.size(); position++)
+    {
+        if (data.at(position) == 0 && (cutPoint == -1))
+        {
+            cutPoint = position;
+        }
+        else if(data.at(position) != 0)
+        {
+            cutPoint = -1;
+        }
+    }
+
+    if (cutPoint != -1)
+    {
+        data.erase(data.begin() + cutPoint, data.end());
+    }
+}
 
 BigNum operator+(BigNum lhs, const BigNum& rhs)
 {
@@ -304,19 +339,24 @@ bool operator<(const BigNum& lhs, const BigNum& rhs)
     {
         return true;
     }
-    else if (lhs.number.size() > rhs.number.size())
+    else if (lhs.number.size() > rhs.number.size() || (lhs.positive && !rhs.positive))
     {
         return false;
     }
-
-    for (int64_t position = rhs.number.size() - 1; 0 <= position; position--)
+    int64_t position = rhs.number.size() - 1;
+    while (rhs.number.at(position) == lhs.number.at(position))
     {
-        if (lhs.number.at(position) < rhs.number.at(position))
-        {
-            return true;
-        }
+        position--;
     }
-    return false;
+
+    if (lhs.number.at(position) < rhs.number.at(position))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 bool operator>(const BigNum& lhs, const BigNum& rhs)
@@ -325,19 +365,26 @@ bool operator>(const BigNum& lhs, const BigNum& rhs)
     {
         return true;
     }
-    else if (lhs.number.size() < rhs.number.size())
+    else if (lhs.number.size() < rhs.number.size() || (!lhs.positive && rhs.positive))
     {
         return false;
     }
 
-    for (int64_t position = lhs.number.size() - 1; 0 <= position; position--)
+    int64_t position = lhs.number.size() - 1;
+
+    while (lhs.number.at(position) == rhs.number.at(position))
     {
-        if (lhs.number.at(position) > rhs.number.at(position))
-        {
-            return true;
-        }
+        position--;
     }
-    return false;
+    
+    if (lhs.number.at(position) > rhs.number.at(position))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 bool operator<=(const BigNum& lhs, const BigNum& rhs)
@@ -351,7 +398,25 @@ bool operator>=(const BigNum& lhs, const BigNum& rhs)
 }
 
 
-std::ostream& operator<<(std::ostream& lhs, const BigNum& rhs);
+std::ostream& operator<<(std::ostream& lhs, const BigNum& rhs)
+{
+    auto iter = rhs.number.rbegin();
+    
+    if (!rhs.positive)// && (rhs.number.front() != 0))
+    {
+        lhs << '-';
+    }
+
+    std::stringstream stream;
+    while (iter != rhs.number.rend())
+    {
+        char number = (*iter + '0');
+        stream << number;
+        iter++;
+    }
+    lhs << stream.rdbuf();
+    return lhs;
+}
 
 
 #if SUPPORT_IFSTREAM == 1
@@ -399,6 +464,7 @@ std::pair<std::vector<uint8_t>, bool> subtract(const BigNum& lhs, const BigNum& 
             result.push_back(subresult);
         }
     }
+    BigNum::trimTrailingZero(result);
     return std::make_pair(result, reverse);
 }
 
@@ -408,7 +474,7 @@ std::pair<std::vector<uint8_t>, bool> add(const BigNum& lhs, const BigNum& rhs)
     std::vector<uint8_t> result;
     for (uint64_t position = 0; (position < lhs.number.size()) || (position < rhs.number.size()); position++)
     {
-        uint8_t partialSum = 0;
+        int8_t partialSum = 0;
         if (position < lhs.number.size())
         {
             partialSum += lhs.number.at(position);
@@ -432,5 +498,11 @@ std::pair<std::vector<uint8_t>, bool> add(const BigNum& lhs, const BigNum& rhs)
         partialSum = 0;
         
     }
+    if (carry > 0)
+    {
+        result.push_back(carry);
+    }
+
+    BigNum::trimTrailingZero(result);
     return std::make_pair(result, false);
 }
