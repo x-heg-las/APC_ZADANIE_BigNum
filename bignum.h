@@ -1,6 +1,5 @@
 #pragma once
 
-// here you can include whatever you want :)
 #include <string>
 #include <stdint.h>
 #include <algorithm>
@@ -14,11 +13,9 @@
 #define SUPPORT_DIVISION 0 // define as 1 when you have implemented the division
 #define SUPPORT_IFSTREAM 0 // define as 1 when you have implemented the input >>
 
-// if you do not plan to implement bonus, just delete those lines
 class BigNum final
 {
 public:
-    // constructors
     BigNum()
     {
         this->number.push_back(0);
@@ -70,15 +67,15 @@ public:
             }
             else
             {
-                throw std::exception("Wrong number format");
+                throw std::exception();
             }
         }
         std::ranges::reverse(this->number);
-        if (str.size() == 0)
+        if (number.size() == 0)
         {
             number.push_back(0);
+            this->positive = true;
         }
-        trimTrailingZero(this->number);
         negativeZeroCheck(*this);
     }
 
@@ -88,6 +85,7 @@ public:
     {
         this->positive = rhs.positive;
         this->number = rhs.number;
+        return *this;
     }
 
     // unary operators
@@ -108,7 +106,6 @@ public:
     BigNum& operator+=(const BigNum& rhs)
     {
         std::pair<std::vector<uint8_t>, bool> result;
-        std::cout << "Addition of : " << *this << " and " << rhs << " = ";
         if (this->positive && rhs.positive)
         {
             //both are positive
@@ -132,24 +129,21 @@ public:
         else if (this->positive && (!rhs.positive))
         {
             //right is negative
-            BigNum unsignedCopy(*this);
+            BigNum unsignedCopy(rhs);
             unsignedCopy.positive = true;
 
-            result = subtract(unsignedCopy, rhs);
+            result = subtract(*this, unsignedCopy);
             this->positive = !result.second;
         }
         BigNum::trimTrailingZero(result.first);
        
         this->number = result.first;
-
-        std::cout << *this << std::endl;
         return *this;
     }
 
     BigNum& operator-=(const BigNum& rhs)
     {
         std::pair<std::vector<uint8_t>, bool> result;
-        std::cout << "Subtraction of : " << *this << " and " << rhs << " = ";
         if (this->positive && rhs.positive)
         {
             //both are positive
@@ -171,13 +165,12 @@ public:
         else if (this->positive && (!rhs.positive))
         {
             //right is negative
-            result = add(*this, rhs);
+            result = add(*this, -rhs);
             this->positive = !result.second;
         }
-        
+
         this->number = result.first;
         negativeZeroCheck(*this);
-        std::cout << *this << std::endl;
         return *this;
     }
 
@@ -185,8 +178,6 @@ public:
     {
         std::vector<uint8_t> result;
         uint32_t carry = 0;
-        
-        std::cout << "Multiplication of : " << *this << " and " << rhs << " = ";
 
         for (uint64_t multiplicand = 0; multiplicand < rhs.number.size(); multiplicand++)
         {
@@ -201,20 +192,25 @@ public:
                 {
                     result.at(multiplicand + multiplicator) += digits % 10;
                 }
-                carry = digits / base;
-                if (carry > 0)
-                {
-                    result.push_back(carry % 10);
-                    carry = 0;
-                }
+                carry = digits / base; 
+            }
+            if (carry > 0)
+            {
+                result.push_back(carry % 10);
+                carry = 0;
             }
         }
-        this->positive = this->positive && rhs.positive;
+
         if ((!this->positive) && (!rhs.positive))
         {
             this->positive = true;
         }
+        else
+        {
+            this->positive = this->positive && rhs.positive;
+        }
 
+        //carry overflowing numbers to the next power of 10
         for (uint64_t iter = 0; iter < result.size(); iter++)
         {
             if (result.at(iter) >= 10)
@@ -236,7 +232,6 @@ public:
         BigNum::trimTrailingZero(result);
         this->number = result;
         negativeZeroCheck(*this);
-        std::cout << *this << std::endl;
         return *this;
     }
 
@@ -262,6 +257,7 @@ private:
     friend std::ostream& operator<<(std::ostream& lhs, const BigNum& rhs);
     friend bool operator==(const BigNum& lhs, const BigNum& rhs);
 
+    //tests if the number is positive
     bool isPositive()
     {
         return this->positive;
@@ -273,6 +269,7 @@ private:
     }
 };
 
+//checks if the number is equal to negative zero then changes it to positive
 void negativeZeroCheck(BigNum& member)
 {
     if (member.number.size() == 1 && member.number.front() == 0 && !member.positive)
@@ -300,6 +297,7 @@ void BigNum::trimTrailingZero(std::vector<uint8_t>& data)
 
     if (cutPoint != -1)
     {
+        //cuts trailing zeros
         data.erase(data.begin() + cutPoint, data.end());
     }
 }
@@ -344,7 +342,7 @@ bool operator<(const BigNum& lhs, const BigNum& rhs)
         return false;
     }
     int64_t position = rhs.number.size() - 1;
-    while (rhs.number.at(position) == lhs.number.at(position))
+    while (rhs.number.at(position) == lhs.number.at(position) && position > 0)
     {
         position--;
     }
@@ -372,7 +370,7 @@ bool operator>(const BigNum& lhs, const BigNum& rhs)
 
     int64_t position = lhs.number.size() - 1;
 
-    while (lhs.number.at(position) == rhs.number.at(position))
+    while (lhs.number.at(position) == rhs.number.at(position) && position > 0)
     {
         position--;
     }

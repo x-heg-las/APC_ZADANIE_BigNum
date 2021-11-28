@@ -12,25 +12,32 @@ int main()
 
 		for (int i = 0; i < 10000; i++) {
 			
-	/*		BigNum a{-3};
-			int aa = -3;
-			int bb = rand();
-			BigNum b{ bb };
+		
 
-			int cc = rand();
-			BigNum c{ cc };*/
 
-			int dd = rand();
+			int dd = rand() % 100000;
 			BigNum d{ dd };
 
-			int ee = rand();
-			BigNum e{ ee };
+			int ee = rand() % 100000;
+			BigNum e{ "das"};
+			
+			BigNum q = e + e;
+			BigNum y = -q;
+			
+			
 
-	
+			BigNum t = e + d ;
+			int64_t k =ee + dd;
 
+			
 
-			BigNum t = d+e;
-			int64_t k = dd + ee;
+			assert((e > d) == (ee > dd));
+			assert((e < d) == (ee < dd));
+			assert((e == d) == (ee == dd));
+			assert((e != d) == (ee != dd));
+			assert((e < d) == (ee < dd));
+			assert((e <= d) == (ee <= dd));
+			assert((e >= d) == (ee >= dd));
 
 			std::cout << "###############BIGNUM :" << t << std::endl;
 			std::cout << "###############INT :" << k << std::endl;
@@ -41,6 +48,7 @@ int main()
 			std::string mmoje = moje.str();
 			std::string iine = ine.str();
 
+			assert(!mmoje.starts_with("0") );
 
 			assert(mmoje == iine);
 		}
